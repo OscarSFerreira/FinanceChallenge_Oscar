@@ -40,49 +40,54 @@ namespace DocumentAPI.Controllers
 
                 if (valid.IsValid)
                 {
+
+                    if (mapperDoc.Paid == true)
+                    {
+                        var client = new HttpClient();
+                        string ApiUrl = "https://localhost:44359/api/BankRequest";
+
+                        BankRecordDTO bankrecordaux = new BankRecordDTO();
+
+                        if (mapperDoc.Operation == Operation.Entry)
+                        {
+                            var bankRecord = new BankRecordDTO()
+                            {
+                                Origin = Origin.Document,
+                                OriginId = Guid.NewGuid(),
+                                Description = $"Financial Transaction (id: {mapperDoc.Id})",
+                                Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
+                                Amount = mapperDoc.Total
+                            };
+                            bankrecordaux = bankRecord;
+                        }
+                        else/*(mapperDoc.Operation == Operation.Exit)*/
+                        {
+                            var bankRecord = new BankRecordDTO()
+                            {
+                                Origin = Origin.Document,
+                                OriginId = Guid.NewGuid(),
+                                Description = $"Financial Transaction (id: {mapperDoc.Id})",
+                                Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
+                                Amount = mapperDoc.Total
+                            };
+                            bankrecordaux = bankRecord;
+                        }
+
+                        var response = await client.PostAsJsonAsync(ApiUrl, bankrecordaux);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            return BadRequest(response.Content.ToString());
+                        }
+
+                    }
+
                     await _documentRepository.AddAsync(mapperDoc);
-                    return Ok(mapperDoc);
+
                 }
                 else
                 {
                     var msg = valid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
                     return BadRequest(msg);
-                }
-
-                //await _documentRepository.AddAsync(mapperDoc);
-
-                if (mapperDoc.Paid == true)
-                {
-                    var client = new HttpClient();
-                    string ApiUrl = "https://localhost:44359/api/BankRequest";
-
-                    decimal amount;
-                    amount = mapperDoc.Total;
-
-                    if (mapperDoc.Operation == Operation.Entry)
-                    {
-                        amount = mapperDoc.Total;
-                    }
-                    else
-                    {
-                        amount = -mapperDoc.Total;
-                    }
-
-                    var bankRecord = new BankRecordDTO()
-                    {
-                        Origin = Origin.Document,
-                        OriginId = Guid.NewGuid(),
-                        Description = $"Financial Transaction (id: {mapperDoc.Id})",
-                        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
-                        Amount = amount
-                    };
-
-                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        return BadRequest(response.Content.ToString());
-                    }
-
                 }
 
                 return Ok(mapperDoc);
@@ -125,9 +130,13 @@ namespace DocumentAPI.Controllers
                 var result = await _documentRepository.GetByIdAsync(id);
 
                 if (result == null)
+                {
                     return NoContent();
+                }
                 else
+                {
                     return Ok(result);
+                }
             }
             catch (Exception)
             {
@@ -148,18 +157,8 @@ namespace DocumentAPI.Controllers
                 {
                     return NotFound();
                 }
-
+                
                 var mapperDocument = _mapper.Map(input, document);
-
-                document.Number = mapperDocument.Number;
-                document.Date = mapperDocument.Date;
-                document.DocType = mapperDocument.DocType;
-                document.Operation = mapperDocument.Operation;
-                document.Paid = document.Paid;
-                document.PaymentDate = mapperDocument.PaymentDate;
-                document.Description = mapperDocument.Description;
-                document.Total = mapperDocument.Total;
-                document.Observation = mapperDocument.Observation;
 
                 var TotalUpdated = document.Total - totalValueOld;
 
@@ -174,7 +173,7 @@ namespace DocumentAPI.Controllers
                         {
                             Origin = Origin.Document,
                             OriginId = Guid.NewGuid(),
-                            Description = $"Diference in Document id: {document.Id}",
+                            Description = $"Diference Transaction in Document id: {document.Id}",
                             Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
                             Amount = TotalUpdated
                         };
@@ -205,12 +204,17 @@ namespace DocumentAPI.Controllers
             try
             {
                 var document = await _documentRepository.GetByIdAsync(id);
+
                 if (document == null)
+                {
                     return NotFound();
+                }
+
                 if (document.Paid == true)
                 {
                     return Ok("Only Delete");
                 }
+
                 document.Paid = Status;
 
                 await _documentRepository.UpdateAsync(document);
@@ -281,6 +285,7 @@ namespace DocumentAPI.Controllers
                     {
                         return BadRequest(response.Content.ToString());
                     }
+
                 }
 
                 return Ok(document);
@@ -290,7 +295,9 @@ namespace DocumentAPI.Controllers
             {
                 return BadRequest();
             }
+
         }
 
     }
+
 }

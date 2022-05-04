@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using DesafioFinanceiro_Oscar.Domain.DTO_s;
 using DesafioFinanceiro_Oscar.Domain.Entities;
+using DesafioFinanceiro_Oscar.Domain.Validators;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.BuyRequestRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.ProductRequestRepository;
 using Microsoft.AspNetCore.Mvc;
@@ -39,36 +40,55 @@ namespace BuyRequestAPI.Controllers
 
                 var mapperBuy = _mapper.Map(buyinput, buyReq);
 
-                foreach (var product in buyinput.Products)
+                var buyValidator = new BuyRequestValidator();
+                var buyValid = buyValidator.Validate(mapperBuy);
+
+                var lastProdType = buyinput.Products.FirstOrDefault().ProductCategory;
+
+                if (buyValid.IsValid)
                 {
-                    prodReq.Total = product.ProductQuantity * product.ProductPrice;
 
-                    var mapperProd = _mapper.Map(product, prodReq);
+                    foreach (var product in buyinput.Products)
+                    {
+                        if (product.ProductCategory != lastProdType)
+                        {
+                            return BadRequest("A Request can't have 2 different item category!");
+                        }
 
-                    mapperProd.RequestId = mapperBuy.Id;
-                    mapperProd.Id = Guid.NewGuid();
-                    mapperProd.ProductId = Guid.NewGuid();
+                        var mapperProd = _mapper.Map(product, prodReq);
 
-                    await _productRequestRepository.AddAsync(mapperProd);
+                        var prodValidator = new ProductRequestValidator();
+                        var prodValid = prodValidator.Validate(mapperProd);
 
-                    buyReq.ProductPrices += product.ProductPrice;
+                        if (prodValid.IsValid)
+                        {
+                            mapperProd.RequestId = mapperBuy.Id;
+                            mapperProd.Id = Guid.NewGuid();
+                            mapperProd.ProductId = Guid.NewGuid();
+
+                            await _productRequestRepository.AddAsync(mapperProd);
+
+                            buyReq.ProductPrices += prodReq.Total;
+                        }
+                        else
+                        {
+                            var msg = prodValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
+                            return BadRequest(msg);
+                        }
+
+                    }
+
+                    mapperBuy.Status = Status.Received;
+
+                    await _buyRequestRepository.AddAsync(mapperBuy);
+                    return Ok(mapperBuy);
+
                 }
-
-                //buyReq.TotalPricing = buyReq.ProductPrices
-
-                //var validator = new BankRecordValidator();
-                //var valid = validator.Validate(mapper);
-
-                //if (valid.IsValid)
-                //{
-                await _buyRequestRepository.AddAsync(mapperBuy);
-                return Ok(mapperBuy);
-                //}
-                //else
-                //{
-                //var msg = valid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                //return BadRequest(/*msg*/);
-                //}
+                else
+                {
+                    var msg = buyValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
+                    return BadRequest(msg);
+                }
 
             }
             catch (Exception)
@@ -144,24 +164,42 @@ namespace BuyRequestAPI.Controllers
 
             try
             {
-                //BuyRequest buyReq = new BuyRequest();
                 ProductRequest prodReq = new ProductRequest();
-
-                //var mapperBuy = _mapper.Map(buyinput, buyReq);
 
                 var request = await _buyRequestRepository.GetByIdAsync(id);
                 var products = _productRequestRepository.GetAllByRequestId(id).ToList();
+                var oldStatus = request.Status;
+                var totalValueOld = request.TotalPricing;
 
-                int smallerAmount = 0;
-
-                if (products.Count() == buyinput.Products.Count())
+                if (request == null || products == null)
                 {
-                    smallerAmount = products.Count();
+                    return NotFound();
                 }
-                else if (products.Count() < buyinput.Products.Count())
-                {
-                    smallerAmount = products.Count();
 
+                if (request.Status == Status.Finalized && buyinput.Status != Status.Finalized)
+                {
+                    return BadRequest("Only Delete");
+                }
+
+                if (buyinput.Products.FirstOrDefault().ProductCategory == ProductCategory.Physical)
+                {
+                    if (buyinput.Status == Status.WaitingDownload)
+                    {
+                        return BadRequest("A Physical product can't be set to Waiting To Download status!");
+                    }
+                }
+                else
+                {
+                    if (buyinput.Status == Status.WaitingDelivery)
+                    {
+                        return BadRequest("A Digital product can't be set to Waiting To Delivery status!");
+                    }
+                }
+
+                int smallerAmount = products.Count();
+
+                if (products.Count() < buyinput.Products.Count())
+                {
                     for (int i = products.Count(); i < buyinput.Products.Count(); i++)
                     {
 
@@ -173,10 +211,19 @@ namespace BuyRequestAPI.Controllers
 
                         mapperProd.Total = mapperProd.ProductQuantity * mapperProd.ProductPrice;
 
-                        await _productRequestRepository.UpdateAsync(mapperProd);
+                        var prodValidator = new ProductRequestValidator();
+                        var prodValid = prodValidator.Validate(mapperProd);
 
+                        if (prodValid.IsValid)
+                        {
+                            await _productRequestRepository.UpdateAsync(mapperProd);
+                        }
+                        else
+                        {
+                            var msg = prodValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
+                            return BadRequest(msg);
+                        }
                     }
-
                 }
                 else if (products.Count() > buyinput.Products.Count())
                 {
@@ -205,29 +252,76 @@ namespace BuyRequestAPI.Controllers
                 request.TotalPricing = request.ProductPrices * (request.ProductPrices * (request.Discount / 100));
 
                 var mapperBuy = _mapper.Map(buyinput, request);
-                await _buyRequestRepository.UpdateAsync(mapperBuy);
+
+                //if (request.Status == Status.Finalized)
+                //{
+                //    var client = new HttpClient();
+                //    string ApiUrl = "https://localhost:44359/api/BankRequest";
+
+                //    var bankRecord = new BankRecordDTO()
+                //    {
+                //        Origin = Origin.PurchaseRequest,
+                //        OriginId = Guid.NewGuid(),
+                //        Description = $"Purshase order id: {request.Id}",
+                //        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
+                //        Amount = -request.TotalPricing
+                //    };
+
+                //    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
+                //    if (!response.IsSuccessStatusCode)
+                //    {
+                //        return BadRequest(response.Content.ToString());
+                //    }
+
+                //}
+
+                var buyValidator = new BuyRequestValidator();
+                var buyValid = buyValidator.Validate(mapperBuy);
+
+                if (buyValid.IsValid)
+                {
+                    await _buyRequestRepository.UpdateAsync(mapperBuy);
+                }
+                else
+                {
+                    var msg = buyValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
+                    return BadRequest(msg);
+                }
+
+                var recentValue = mapperBuy.TotalPricing; //valor recente (total)
+
+                if (request.Status == Status.Finalized)
+                {
+                    var totalUpdated = mapperBuy.TotalPricing - totalValueOld;
+                    var type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive;
+                    var amount = totalUpdated;
+                    string description = $"Financial transaction order id: {request.Id}";
+
+                    if (mapperBuy.Status == oldStatus && mapperBuy.Status == Status.Finalized && totalValueOld > mapperBuy.TotalPricing)
+                    {
+                        description = $"Diference purchase order id: {request.Id}";
+                        amount = -totalUpdated;
+                        type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment;
+                    }
+
+                    var client = new HttpClient();
+                    string ApiUrl = "https://localhost:44359/api/BankRequest";
+
+                    var bankRecord = new BankRecordDTO()
+                    {
+                        Origin = Origin.PurchaseRequest,
+                        OriginId = Guid.NewGuid(),
+                        Description = description,
+                        Type = type,
+                        Amount = totalUpdated
+                    };
+
+                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
+                    if (!response.IsSuccessStatusCode)
+                        return BadRequest(response.Content.ToString());
+                }
+
                 return Ok(mapperBuy);
-
-
-                //if (products.Count() > buyinput.Products.Count())
-                //{
-                //    for (int i = buyinput.Products.Count(); i <= products.Count(); i++)
-                //    {
-                //        await _productRequestRepository.DeleteAsync(products[i]);
-                //    }
-                //}
-
-                //if (products.Count() > buyinput.Products.Count())
-                //{
-                //    for (int i = buyinput.Products.Count(); i <= products.Count(); i++)
-                //    {
-                //        var mapperProd = _mapper.Map(buyinput.Products[i], prodReq);
-                //        await _productRequestRepository.AddAsync(mapperProd);
-                //    }
-                //}
-
-                //await _buyRequestRepository.AddAsync(mapperBuy);
-                //return Ok(mapperBuy);
 
             }
             catch (Exception)
@@ -241,15 +335,36 @@ namespace BuyRequestAPI.Controllers
         public async Task<IActionResult> ChangeState(Guid id, Status state)
         {
             var request = await _buyRequestRepository.GetByIdAsync(id);
+            var product = _productRequestRepository.GetAllByRequestId(id).FirstOrDefault();
+
             if (request == null)
             {
                 return NotFound();
             }
+
             if (request.Status == Status.Finalized)
             {
                 return Ok("Only Delete");
             }
+
+            if (product.ProductCategory == ProductCategory.Physical)
+            {
+                if (state == Status.WaitingDownload)
+                {
+                    return BadRequest("A Physical product can't be set to WaitingDownload status!");
+                }
+            }
+            else
+            {
+                if (state == Status.WaitingDelivery)
+                {
+                    return BadRequest("A Digital product can't be set to WaitingDelivery status!");
+                }
+            }
+
             request.Status = state;
+
+
 
             await _buyRequestRepository.UpdateAsync(request);
 
@@ -263,13 +378,16 @@ namespace BuyRequestAPI.Controllers
                     Origin = Origin.PurchaseRequest,
                     OriginId = Guid.NewGuid(),
                     Description = $"Purshase order id: {request.Id}",
-                    Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
-                    Amount = -request.TotalPricing
+                    Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
+                    Amount = request.TotalPricing
                 };
 
                 var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
                 if (!response.IsSuccessStatusCode)
+                {
                     return BadRequest(response.Content.ToString());
+                }
+
             }
 
             return Ok(request);

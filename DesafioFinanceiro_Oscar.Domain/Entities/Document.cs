@@ -5,7 +5,7 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
     public class Document
     {
         private DateTimeOffset? _date;
-        public Guid Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         public string Number { get; set; }
         public DateTimeOffset Date { get; set; }
         public DocType DocType { get; set; }

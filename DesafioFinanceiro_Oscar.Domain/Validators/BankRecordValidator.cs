@@ -20,9 +20,9 @@ namespace DesafioFinanceiro_Oscar.Domain.Validators
             RuleFor(x => x.Amount)
                 .NotNull().WithMessage("The Amount field is required")
                 .LessThan(0).WithMessage("Payment option must have a negative Amount != 0")
-                .When(x => x.Type.ToString() == "Payment", ApplyConditionTo.CurrentValidator)
+                .When(x => x.Type == Type.Payment, ApplyConditionTo.CurrentValidator)
                 .GreaterThan(0).WithMessage("Receive option must have a positive Amount != 0")
-                .When(x => x.Type.ToString() == "Receive", ApplyConditionTo.CurrentValidator);
+                .When(x => x.Type == Type.Receive, ApplyConditionTo.CurrentValidator);
 
         }
 

@@ -33,6 +33,7 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
             {
                 _totalValue = value;
             }
+
         } 
 
     }
