@@ -79,7 +79,8 @@ namespace BuyRequestAPI.Controllers
                     }
 
                     mapperBuy.Status = Status.Received;
-
+                    mapperBuy.TotalPricing = buyReq.ProductPrices - (buyReq.ProductPrices * (buyReq.Discount / 100));
+                    
                     await _buyRequestRepository.AddAsync(mapperBuy);
                     return Ok(mapperBuy);
 
@@ -253,28 +254,6 @@ namespace BuyRequestAPI.Controllers
 
                 var mapperBuy = _mapper.Map(buyinput, request);
 
-                //if (request.Status == Status.Finalized)
-                //{
-                //    var client = new HttpClient();
-                //    string ApiUrl = "https://localhost:44359/api/BankRequest";
-
-                //    var bankRecord = new BankRecordDTO()
-                //    {
-                //        Origin = Origin.PurchaseRequest,
-                //        OriginId = Guid.NewGuid(),
-                //        Description = $"Purshase order id: {request.Id}",
-                //        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
-                //        Amount = -request.TotalPricing
-                //    };
-
-                //    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
-                //    if (!response.IsSuccessStatusCode)
-                //    {
-                //        return BadRequest(response.Content.ToString());
-                //    }
-
-                //}
-
                 var buyValidator = new BuyRequestValidator();
                 var buyValid = buyValidator.Validate(mapperBuy);
 
@@ -310,7 +289,7 @@ namespace BuyRequestAPI.Controllers
                     var bankRecord = new BankRecordDTO()
                     {
                         Origin = Origin.PurchaseRequest,
-                        OriginId = Guid.NewGuid(),
+                        OriginId = mapperBuy.Id,
                         Description = description,
                         Type = type,
                         Amount = totalUpdated
@@ -376,7 +355,7 @@ namespace BuyRequestAPI.Controllers
                 var bankRecord = new BankRecordDTO()
                 {
                     Origin = Origin.PurchaseRequest,
-                    OriginId = Guid.NewGuid(),
+                    OriginId = id,
                     Description = $"Purshase order id: {request.Id}",
                     Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
                     Amount = request.TotalPricing
@@ -425,7 +404,7 @@ namespace BuyRequestAPI.Controllers
                     var bankRecord = new BankRecordDTO()
                     {
                         Origin = Origin.Document,
-                        OriginId = Guid.NewGuid(),
+                        OriginId = id,
                         Description = $"Revert Purshase order id: {result.Id}",
                         Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
                         Amount = -result.TotalPricing

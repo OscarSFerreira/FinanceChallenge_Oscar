@@ -53,7 +53,7 @@ namespace DocumentAPI.Controllers
                             var bankRecord = new BankRecordDTO()
                             {
                                 Origin = Origin.Document,
-                                OriginId = Guid.NewGuid(),
+                                OriginId = mapperDoc.Id,
                                 Description = $"Financial Transaction (id: {mapperDoc.Id})",
                                 Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
                                 Amount = mapperDoc.Total
@@ -65,7 +65,7 @@ namespace DocumentAPI.Controllers
                             var bankRecord = new BankRecordDTO()
                             {
                                 Origin = Origin.Document,
-                                OriginId = Guid.NewGuid(),
+                                OriginId = mapperDoc.Id,
                                 Description = $"Financial Transaction (id: {mapperDoc.Id})",
                                 Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
                                 Amount = mapperDoc.Total
@@ -158,7 +158,7 @@ namespace DocumentAPI.Controllers
                     return NotFound();
                 }
                 
-                var mapperDocument = _mapper.Map(input, document);
+                var mapperDoc = _mapper.Map(input, document);
 
                 var TotalUpdated = document.Total - totalValueOld;
 
@@ -172,7 +172,7 @@ namespace DocumentAPI.Controllers
                         var bankRecord = new BankRecordDTO()
                         {
                             Origin = Origin.Document,
-                            OriginId = Guid.NewGuid(),
+                            OriginId = document.Id,
                             Description = $"Diference Transaction in Document id: {document.Id}",
                             Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
                             Amount = TotalUpdated
@@ -186,9 +186,9 @@ namespace DocumentAPI.Controllers
                     }
                 }
 
-                await _documentRepository.UpdateAsync(mapperDocument);
+                await _documentRepository.UpdateAsync(mapperDoc);
 
-                return Ok(mapperDocument);
+                return Ok(mapperDoc);
 
             }
             catch (Exception)
@@ -227,7 +227,7 @@ namespace DocumentAPI.Controllers
                     var bankRecord = new BankRecordDTO()
                     {
                         Origin = Origin.Document,
-                        OriginId = Guid.NewGuid(),
+                        OriginId = document.Id,
                         Description = $"Financial Transaction (id: {document.Id})",
                         Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
                         Amount = document.Total
@@ -274,10 +274,10 @@ namespace DocumentAPI.Controllers
                     var bankRecord = new BankRecordDTO()
                     {
                         Origin = Origin.Document,
-                        OriginId = Guid.NewGuid(),
+                        OriginId = document.Id,
                         Description = $"Revert Document order id: {document.Id}",
                         Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
-                        Amount = document.Total
+                        Amount = -document.Total
                     };
 
                     var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);

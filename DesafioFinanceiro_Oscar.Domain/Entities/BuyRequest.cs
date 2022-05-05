@@ -4,7 +4,7 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
 {
     public class BuyRequest
     {
-        private decimal _totalValue;
+        //private decimal _totalValue;
         public Guid Id { get; set; } = Guid.NewGuid();
         public long Code { get; set; }
         public DateTimeOffset Date { get; set; }
@@ -23,18 +23,18 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
         public decimal ProductPrices { get; set; }
         public decimal Discount { get; set; }
         public decimal CostPrice { get; set; }
-        public decimal TotalPricing
-        {
-            get
-            {
-                return _totalValue = ProductPrices - (ProductPrices * (Discount / 100)); // rever este calculo (ProductPrice - Discount)
-            }
-            set
-            {
-                _totalValue = value;
-            }
+        public decimal TotalPricing { get; set; }
+        //{
+        //    get
+        //    {
+        //        return _totalValue = ProductPrices - (ProductPrices * (Discount / 100)); // rever este calculo (ProductPrice - Discount)
+        //    }
+        //    set
+        //    {
+        //        _totalValue = value;
+        //    }
 
-        } 
+        //} 
 
     }
 }

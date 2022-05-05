@@ -4,10 +4,13 @@ using DesafioFinanceiro_Oscar.Domain.Entities;
 using DesafioFinanceiro_Oscar.Domain.Validators;
 using DesafioFinanceiro_Oscar.Domain.ViewModel;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
+using DesafioFinanceiro_Oscar.Infrastructure.Repository.BuyRequestRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.DocumentRepository;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace BankRequestAPI.Controllers
@@ -19,13 +22,15 @@ namespace BankRequestAPI.Controllers
 
         private readonly IBankRecordRepository _bankRecordRepository;
         private readonly IDocumentRepository _documentRepository;
+        private readonly IBuyRequestRepository _buyRequestRepository;
         private readonly IMapper _mapper;
 
-        public BankRequestController(IBankRecordRepository bankRecordRepository, IDocumentRepository documentRepository, IMapper mapper)
+        public BankRequestController(IBankRecordRepository bankRecordRepository, IDocumentRepository documentRepository, IMapper mapper, IBuyRequestRepository buyRequestRepository)
         {
             _mapper = mapper;
             _bankRecordRepository = bankRecordRepository;
             _documentRepository = documentRepository;
+            _buyRequestRepository = buyRequestRepository;
         }
 
         [HttpPost]
@@ -39,6 +44,9 @@ namespace BankRequestAPI.Controllers
 
                 var validator = new BankRecordValidator();
                 var valid = validator.Validate(mapper);
+
+                mapper.OriginId = null;
+                mapper.Origin = Origin.Null;
 
                 if (valid.IsValid)
                 {
@@ -103,23 +111,23 @@ namespace BankRequestAPI.Controllers
             }
         }
 
-        [HttpGet("GetByIdOrDocId")]
-        public async Task<IActionResult> GetByIdOrDocId(Guid Id, Guid DocId)
+        [HttpGet("GetByRequestIdOrDocumentId")]
+        public async Task<IActionResult> GetByIdOrDocId(Guid RequestId, Guid DocId)
         {
             try
             {
-                BankRecord bank;
-                Document doc;
+                BuyRequest request;
+                Document document;
 
-                if (Id != Guid.Empty)
+                if (RequestId != Guid.Empty)
                 {
-                    bank = await _bankRecordRepository.GetByIdAsync(Id);
-                    return bank == null ? NoContent() : Ok(bank);
+                    request = await _buyRequestRepository.GetByIdAsync(RequestId);
+                    return request == null ? NoContent() : Ok(request);
                 }
                 else
                 {
-                    doc = await _documentRepository.GetByIdAsync(DocId);
-                    return doc == null ? NoContent() : Ok(doc);
+                    document = await _documentRepository.GetByIdAsync(DocId);
+                    return document == null ? NoContent() : Ok(document);
                 }
 
             }
@@ -128,5 +136,56 @@ namespace BankRequestAPI.Controllers
                 return BadRequest();
             }
         }
+
+        [HttpPut("ChangeBankRequest/{id}")]
+        public async Task<IActionResult> ChangeBankRequest(Guid id, [FromBody] BankRecordDTO bankRecord)
+        {
+            try
+            {
+                BankRecord bank = new BankRecord();
+
+                var bankRecordUpdate = await _bankRecordRepository.GetByIdAsync(id);
+                if (bankRecordUpdate == null)
+                {
+                    //List<string> returnList = new List<string>();
+                    //returnList.Add("No data available with this id in database");
+                    //var news = new BankRecordErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
+                    //return StatusCode((int)HttpStatusCode.NotFound, news);
+                    return BadRequest();
+                }
+
+                if (bankRecordUpdate.OriginId != null)
+                {
+                    return BadRequest("Não é possivel alterar");
+                }
+
+                var mapBankRecord = _mapper.Map(bankRecord, bankRecordUpdate);
+
+                var validator = new BankRecordValidator();
+                var validation = validator.Validate(mapBankRecord);
+
+                if (validation.IsValid)
+                {
+                    await _bankRecordRepository.UpdateAsync(bankRecordUpdate);
+                    return Ok(bankRecordUpdate);
+                }
+                else
+                {
+                    //var news = new BankRecordErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(),
+                    //    validation.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bankRecordUpdate);
+                    //return StatusCode((int)HttpStatusCode.BadRequest, news);
+                    return BadRequest("Nop");
+                }
+            }
+            catch (Exception ex)
+            {
+                //List<string> returnList = new List<string>();
+                //returnList.Add(ex.Message);
+                //var news = new BankRecordErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(), returnList, null);
+                //return StatusCode((int)HttpStatusCode.BadRequest, news);
+                return BadRequest();
+            }
+        }
+
     }
 }

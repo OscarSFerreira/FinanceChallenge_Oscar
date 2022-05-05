@@ -1,5 +1,6 @@
 using DesafioFinanceiro_Oscar.Infrastructure;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
+using DesafioFinanceiro_Oscar.Infrastructure.Repository.BuyRequestRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.DocumentRepository;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -37,6 +38,7 @@ namespace BankRequestAPI
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
             services.AddScoped<IBankRecordRepository, BankRecordRepository>();
             services.AddScoped<IDocumentRepository, DocumentRepository>();
+            services.AddScoped<IBuyRequestRepository, BuyRequestRepository>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
