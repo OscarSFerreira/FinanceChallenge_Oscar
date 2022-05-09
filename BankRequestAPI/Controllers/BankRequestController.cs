@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using BankRequestAPI.ErrorMessage;
 using DesafioFinanceiro_Oscar.Domain.DTO_s;
 using DesafioFinanceiro_Oscar.Domain.Entities;
 using DesafioFinanceiro_Oscar.Domain.Validators;
@@ -95,22 +96,33 @@ namespace BankRequestAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] PageParameter parameters)
         {
             try
             {
 
                 BankRecordViewModel bankRecord = new BankRecordViewModel();
 
-                bankRecord.BankRecords = _bankRecordRepository.GetAll().ToList();
+                bankRecord.BankRecords = _bankRecordRepository.GetAll(parameters).ToList();
+
+                if (bankRecord.BankRecords.Count == 0)
+                {
+                    List<string> returnList = new List<string>();
+                    returnList.Add("No data available with this id in database");
+                    var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
+                    return StatusCode((int)HttpStatusCode.NotFound, news);
+                }
+
                 bankRecord.Total = bankRecord.BankRecords.Sum(prod => prod.Amount);
 
                 return Ok(bankRecord);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-
-                return BadRequest();
+                List<string> returnList = new List<string>();
+                returnList.Add("No data available with this id in database");
+                var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
+                return StatusCode((int)HttpStatusCode.NotFound, news);
             }
         }
 
@@ -150,11 +162,11 @@ namespace BankRequestAPI.Controllers
                 var bankRecordUpdate = await _bankRecordRepository.GetByIdAsync(id);
                 if (bankRecordUpdate == null)
                 {
-                    //List<string> returnList = new List<string>();
-                    //returnList.Add("No data available with this id in database");
-                    //var news = new BankRecordErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
-                    //return StatusCode((int)HttpStatusCode.NotFound, news);
-                    return BadRequest();
+                    List<string> returnList = new List<string>();
+                    returnList.Add("No data available with this id in database");
+                    var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
+                    return StatusCode((int)HttpStatusCode.NotFound, news);
+                    //return BadRequest();
                 }
 
                 if (bankRecordUpdate.OriginId != null)
@@ -174,19 +186,19 @@ namespace BankRequestAPI.Controllers
                 }
                 else
                 {
-                    //var news = new BankRecordErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(),
-                    //    validation.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bankRecordUpdate);
-                    //return StatusCode((int)HttpStatusCode.BadRequest, news);
-                    return BadRequest("Nop");
+                    var news = new BankRequestErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(),
+                        validation.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bankRecordUpdate);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
+                    //return BadRequest("Nop");
                 }
             }
             catch (Exception ex)
             {
-                //List<string> returnList = new List<string>();
-                //returnList.Add(ex.Message);
-                //var news = new BankRecordErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(), returnList, null);
-                //return StatusCode((int)HttpStatusCode.BadRequest, news);
-                return BadRequest();
+                List<string> returnList = new List<string>();
+                returnList.Add(ex.Message);
+                var news = new BankRequestErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(), returnList, null);
+                return StatusCode((int)HttpStatusCode.BadRequest, news);
+                //return BadRequest();
             }
         }
 
