@@ -45,8 +45,11 @@ namespace BankRequestAPI.Controllers
                 var validator = new BankRecordValidator();
                 var valid = validator.Validate(mapper);
 
-                mapper.OriginId = null;
-                mapper.Origin = Origin.Null;
+                if (input.Origin == Origin.Null)
+                {
+                    mapper.OriginId = null;
+                    //mapper.Origin = Origin.Null;
+                }
 
                 if (valid.IsValid)
                 {

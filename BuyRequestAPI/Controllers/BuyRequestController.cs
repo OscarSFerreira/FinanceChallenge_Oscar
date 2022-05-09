@@ -47,7 +47,7 @@ namespace BuyRequestAPI.Controllers
 
                 if (buyValid.IsValid)
                 {
-
+                    await _buyRequestRepository.AddAsync(mapperBuy);
                     foreach (var product in buyinput.Products)
                     {
                         if (product.ProductCategory != lastProdType)
@@ -58,7 +58,7 @@ namespace BuyRequestAPI.Controllers
                         var mapperProd = _mapper.Map(product, prodReq);
 
                         var prodValidator = new ProductRequestValidator();
-                        var prodValid = prodValidator.Validate(mapperProd);
+                        var prodValid = prodValidator.Validate(mapperProd); //ver validação em lista para fluent validation 
 
                         if (prodValid.IsValid)
                         {
@@ -81,7 +81,7 @@ namespace BuyRequestAPI.Controllers
                     mapperBuy.Status = Status.Received;
                     mapperBuy.TotalPricing = buyReq.ProductPrices - (buyReq.ProductPrices * (buyReq.Discount / 100));
                     
-                    await _buyRequestRepository.AddAsync(mapperBuy);
+                    await _buyRequestRepository.UpdateAsync(mapperBuy);
                     return Ok(mapperBuy);
 
                 }
@@ -355,7 +355,7 @@ namespace BuyRequestAPI.Controllers
                 var bankRecord = new BankRecordDTO()
                 {
                     Origin = Origin.PurchaseRequest,
-                    OriginId = id,
+                    OriginId = request.Id,
                     Description = $"Purshase order id: {request.Id}",
                     Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
                     Amount = request.TotalPricing
@@ -378,20 +378,11 @@ namespace BuyRequestAPI.Controllers
             try
             {
                 var result = await _buyRequestRepository.GetByIdAsync(id);
-                var productCascadeDelete = _productRequestRepository.GetAllByRequestId(id);
 
                 if (result == null)
                 {
                     return NoContent();
                 }
-                else
-                {
-                    foreach (var product in productCascadeDelete)
-                    {
-                        _productRequestRepository.DeleteAsync(product);
-                    }
-                }
-                //_productRequestRepository.DeleteAsync(productCascadeDelete);
 
                 await _buyRequestRepository.DeleteAsync(result);
 

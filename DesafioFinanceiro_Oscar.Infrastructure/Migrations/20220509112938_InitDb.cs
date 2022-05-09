@@ -42,7 +42,7 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                     Complement = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     City = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     State = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ProductPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    ProductPrices = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Discount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     CostPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     TotalPricing = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
@@ -50,6 +50,26 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_BuyRequests", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Documents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Number = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Date = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    DocType = table.Column<int>(type: "int", nullable: false),
+                    Operation = table.Column<int>(type: "int", nullable: false),
+                    Paid = table.Column<bool>(type: "bit", nullable: false),
+                    PaymentDate = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Total = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Observation = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Documents", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -68,7 +88,18 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ProductRequests", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProductRequests_BuyRequests_RequestId",
+                        column: x => x.RequestId,
+                        principalTable: "BuyRequests",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProductRequests_RequestId",
+                table: "ProductRequests",
+                column: "RequestId");
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
@@ -77,10 +108,13 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                 name: "BankRecords");
 
             migrationBuilder.DropTable(
-                name: "BuyRequests");
+                name: "Documents");
 
             migrationBuilder.DropTable(
                 name: "ProductRequests");
+
+            migrationBuilder.DropTable(
+                name: "BuyRequests");
         }
     }
 }

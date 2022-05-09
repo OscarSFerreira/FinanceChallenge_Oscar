@@ -36,6 +36,7 @@ namespace BankRequestAPI
                 cfg.UseSqlServer(this.Configuration.GetConnectionString("DefaultConnection"));
             });
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+            services.AddScoped<SeedDb>();
             services.AddScoped<IBankRecordRepository, BankRecordRepository>();
             services.AddScoped<IDocumentRepository, DocumentRepository>();
             services.AddScoped<IBuyRequestRepository, BuyRequestRepository>();

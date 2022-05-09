@@ -1,11 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace DesafioFinanceiro_Oscar.Domain.Entities
 {
     public class BuyRequest
     {
         //private decimal _totalValue;
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id { get; set; }
         public long Code { get; set; }
         public DateTimeOffset Date { get; set; }
         public DateTimeOffset DeliveryDate { get; set; }
@@ -35,6 +37,9 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
         //    }
 
         //} 
+
+        [JsonIgnore]
+        public virtual ICollection<ProductRequest> ProductRequests { get; set; }
 
     }
 }

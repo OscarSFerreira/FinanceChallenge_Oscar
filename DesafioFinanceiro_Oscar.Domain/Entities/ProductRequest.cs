@@ -1,4 +1,6 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace DesafioFinanceiro_Oscar.Domain.Entities
 {
@@ -7,6 +9,7 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
         private decimal _total;
 
         public Guid Id { get; set; } = Guid.NewGuid();
+        [ForeignKey("Fk_BuyRequests")]
         public Guid RequestId { get; set; }
         public Guid ProductId { get; set; } = Guid.NewGuid();
         public string ProductDescription { get; set; }
@@ -25,5 +28,9 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
             } //valor*quantidade
 
         }
+
+        [JsonIgnore]
+        public virtual BuyRequest BuyRequests { get; set; }
+
     }
 }

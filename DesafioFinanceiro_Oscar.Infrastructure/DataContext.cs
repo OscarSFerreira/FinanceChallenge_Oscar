@@ -16,6 +16,11 @@ namespace DesafioFinanceiro_Oscar.Infrastructure
         public DbSet<ProductRequest> ProductRequests { get; set; }
         public DbSet<Document> Documents { get; set; }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ProductRequest>().HasOne<BuyRequest>(o => o.BuyRequests).WithMany(p => p.ProductRequests)
+                .HasForeignKey(e => e.RequestId).IsRequired(true).OnDelete(DeleteBehavior.Cascade);
+        }
 
     }
 }

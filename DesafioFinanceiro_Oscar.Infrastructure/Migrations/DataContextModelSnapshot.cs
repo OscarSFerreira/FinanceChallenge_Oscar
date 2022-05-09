@@ -177,7 +177,25 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RequestId");
+
                     b.ToTable("ProductRequests");
+                });
+
+            modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.ProductRequest", b =>
+                {
+                    b.HasOne("DesafioFinanceiro_Oscar.Domain.Entities.BuyRequest", "BuyRequests")
+                        .WithMany("ProductRequests")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BuyRequests");
+                });
+
+            modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.BuyRequest", b =>
+                {
+                    b.Navigation("ProductRequests");
                 });
 #pragma warning restore 612, 618
         }

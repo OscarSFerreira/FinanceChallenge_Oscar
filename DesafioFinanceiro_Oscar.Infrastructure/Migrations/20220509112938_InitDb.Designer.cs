@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20220421112721_InitDb")]
+    [Migration("20220509112938_InitDb")]
     partial class InitDb
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -86,7 +86,7 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                     b.Property<decimal>("Discount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("ProductPrice")
+                    b.Property<decimal>("ProductPrices")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Sector")
@@ -110,6 +110,44 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("BuyRequests");
+                });
+
+            modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.Document", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("Date")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("DocType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Number")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Observation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Operation")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Paid")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTimeOffset?>("PaymentDate")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Documents");
                 });
 
             modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.ProductRequest", b =>
@@ -141,7 +179,25 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RequestId");
+
                     b.ToTable("ProductRequests");
+                });
+
+            modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.ProductRequest", b =>
+                {
+                    b.HasOne("DesafioFinanceiro_Oscar.Domain.Entities.BuyRequest", "BuyRequests")
+                        .WithMany("ProductRequests")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BuyRequests");
+                });
+
+            modelBuilder.Entity("DesafioFinanceiro_Oscar.Domain.Entities.BuyRequest", b =>
+                {
+                    b.Navigation("ProductRequests");
                 });
 #pragma warning restore 612, 618
         }

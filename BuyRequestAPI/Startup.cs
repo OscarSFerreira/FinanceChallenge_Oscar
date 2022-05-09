@@ -42,6 +42,7 @@ namespace BuyRequestAPI
                 cfg.UseSqlServer(this.Configuration.GetConnectionString("DefaultConnection"));
             });
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
+            services.AddScoped<SeedDb>();
             services.AddScoped<IBuyRequestRepository, BuyRequestRepository>();
             services.AddScoped<IProductRequestRepository, ProductRequestRepository>();
         }
