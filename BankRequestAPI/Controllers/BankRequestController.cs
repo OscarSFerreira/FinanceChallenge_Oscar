@@ -1,7 +1,7 @@
 ﻿using AutoMapper;
-using BankRequestAPI.ErrorMessage;
 using DesafioFinanceiro_Oscar.Domain.DTO_s;
 using DesafioFinanceiro_Oscar.Domain.Entities;
+using DesafioFinanceiro_Oscar.Domain.Entities.Messages;
 using DesafioFinanceiro_Oscar.Domain.Validators;
 using DesafioFinanceiro_Oscar.Domain.ViewModel;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
@@ -37,11 +37,10 @@ namespace BankRequestAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] BankRecordDTO input)
         {
-
+            BankRecord bank = new BankRecord();
             try
             {
-                BankRecord rec = new BankRecord();
-                var mapper = _mapper.Map(input, rec);
+                var mapper = _mapper.Map(input, bank);
 
                 var validator = new BankRecordValidator();
                 var valid = validator.Validate(mapper);
@@ -49,7 +48,6 @@ namespace BankRequestAPI.Controllers
                 if (input.Origin == Origin.Null)
                 {
                     mapper.OriginId = null;
-                    //mapper.Origin = Origin.Null;
                 }
 
                 if (valid.IsValid)
@@ -59,14 +57,15 @@ namespace BankRequestAPI.Controllers
                 }
                 else
                 {
-                    var msg = valid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                    return BadRequest(msg);
+                    var news = new ErrorMessage<BankRecord>(HttpStatusCode.BadRequest.GetHashCode().ToString(), valid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bank);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _bankRecordRepository.BadRequestMessage(bank, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -74,13 +73,15 @@ namespace BankRequestAPI.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(Guid id)
         {
+            BankRecord bank = new BankRecord();
             try
             {
                 var bankrec = await _bankRecordRepository.GetByIdAsync(id);
 
                 if (bankrec == null)
                 {
-                    return NoContent();
+                    var result = _bankRecordRepository.NotFoundMessage(bank);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
                 else
                 {
@@ -88,9 +89,10 @@ namespace BankRequestAPI.Controllers
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _bankRecordRepository.BadRequestMessage(bank, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -98,19 +100,17 @@ namespace BankRequestAPI.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] PageParameter parameters)
         {
+            BankRecord bank = new BankRecord();
             try
             {
-
                 BankRecordViewModel bankRecord = new BankRecordViewModel();
 
-                bankRecord.BankRecords = _bankRecordRepository.GetAll(parameters).ToList();
+                bankRecord.BankRecords = _bankRecordRepository.GetAllWithPaging(parameters).OrderBy(rec => rec.Id).ToList();
 
                 if (bankRecord.BankRecords.Count == 0)
                 {
-                    List<string> returnList = new List<string>();
-                    returnList.Add("No data available with this id in database");
-                    var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
-                    return StatusCode((int)HttpStatusCode.NotFound, news);
+                    var result = _bankRecordRepository.NotFoundMessage(bank);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
                 bankRecord.Total = bankRecord.BankRecords.Sum(prod => prod.Amount);
@@ -119,11 +119,10 @@ namespace BankRequestAPI.Controllers
             }
             catch (Exception ex)
             {
-                List<string> returnList = new List<string>();
-                returnList.Add("No data available with this id in database");
-                var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
-                return StatusCode((int)HttpStatusCode.NotFound, news);
+                var result = _bankRecordRepository.BadRequestMessage(bank, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
+
         }
 
         [HttpGet("GetByRequestIdOrDocumentId")]
@@ -131,74 +130,82 @@ namespace BankRequestAPI.Controllers
         {
             try
             {
-                BuyRequest request;
-                Document document;
-
+                
                 if (RequestId != Guid.Empty)
                 {
-                    request = await _buyRequestRepository.GetByIdAsync(RequestId);
-                    return request == null ? NoContent() : Ok(request);
+                    BuyRequest bank = new BuyRequest();
+
+                    bank = await _buyRequestRepository.GetByIdAsync(RequestId);
+
+                    if (bank == null)
+                    {
+                        var result = _buyRequestRepository.NotFoundMessage(bank);
+                        return StatusCode((int)HttpStatusCode.NotFound, result);
+                    }
+                    return Ok(bank);
                 }
                 else
                 {
+                    Document document = new Document();
+
                     document = await _documentRepository.GetByIdAsync(DocId);
-                    return document == null ? NoContent() : Ok(document);
+
+                    if (document == null)
+                    {
+                        var result = _documentRepository.NotFoundMessage(document);
+                        return StatusCode((int)HttpStatusCode.NotFound, result);
+                    }
+                    return Ok(document);
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                BankRecord bank = new BankRecord();
+                var result = _bankRecordRepository.BadRequestMessage(bank, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
         }
 
         [HttpPut("ChangeBankRequest/{id}")]
         public async Task<IActionResult> ChangeBankRequest(Guid id, [FromBody] BankRecordDTO bankRecord)
         {
+            BankRecord bank = new BankRecord();
             try
             {
-                BankRecord bank = new BankRecord();
-
-                var bankRecordUpdate = await _bankRecordRepository.GetByIdAsync(id);
-                if (bankRecordUpdate == null)
+                var bankReqUpdate = await _bankRecordRepository.GetByIdAsync(id);
+                if (bankReqUpdate == null)
                 {
-                    List<string> returnList = new List<string>();
-                    returnList.Add("No data available with this id in database");
-                    var news = new BankRequestErrorMessage(HttpStatusCode.NotFound.GetHashCode().ToString(), returnList, null);
-                    return StatusCode((int)HttpStatusCode.NotFound, news);
-                    //return BadRequest();
+                    var result = _bankRecordRepository.NotFoundMessage(bank);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
-                if (bankRecordUpdate.OriginId != null)
+                if (bankReqUpdate.OriginId != null)
                 {
-                    return BadRequest("Não é possivel alterar");
+                    var result = _bankRecordRepository.BadRequestMessage(bank, "The permissions do not allow you to change this data!");
+                    return StatusCode((int)HttpStatusCode.BadRequest, result);
                 }
 
-                var mapBankRecord = _mapper.Map(bankRecord, bankRecordUpdate);
+                var mapBankRecord = _mapper.Map(bankRecord, bankReqUpdate);
 
                 var validator = new BankRecordValidator();
-                var validation = validator.Validate(mapBankRecord);
+                var valid = validator.Validate(mapBankRecord);
 
-                if (validation.IsValid)
+                if (valid.IsValid)
                 {
-                    await _bankRecordRepository.UpdateAsync(bankRecordUpdate);
-                    return Ok(bankRecordUpdate);
+                    await _bankRecordRepository.UpdateAsync(bankReqUpdate);
+                    return Ok(bankReqUpdate);
                 }
                 else
                 {
-                    var news = new BankRequestErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(),
-                        validation.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bankRecordUpdate);
+                    var news = new ErrorMessage<BankRecord>(HttpStatusCode.BadRequest.GetHashCode().ToString(), valid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), bank);
                     return StatusCode((int)HttpStatusCode.BadRequest, news);
-                    //return BadRequest("Nop");
                 }
             }
             catch (Exception ex)
             {
-                List<string> returnList = new List<string>();
-                returnList.Add(ex.Message);
-                var news = new BankRequestErrorMessage(HttpStatusCode.BadRequest.GetHashCode().ToString(), returnList, null);
-                return StatusCode((int)HttpStatusCode.BadRequest, news);
-                //return BadRequest();
+                var result = _bankRecordRepository.BadRequestMessage(bank, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
         }
 

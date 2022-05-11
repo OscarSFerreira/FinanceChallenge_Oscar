@@ -1,4 +1,6 @@
-﻿using System;
+﻿using DesafioFinanceiro_Oscar.Domain.Entities;
+using DesafioFinanceiro_Oscar.Domain.Entities.Messages;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -14,8 +16,10 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Repository
 
         IQueryable<T> GetAll();
 
-        //Task<T> GetByIdAsync(Guid id);
+        IEnumerable<T> GetAllWithPaging(PageParameter page);
 
-        //Task<bool> ExistAsync(Guid id);
+        ErrorMessage<T> BadRequestMessage(T entity, string msg);
+
+        ErrorMessage<T> NotFoundMessage(T entity);
     }
 }

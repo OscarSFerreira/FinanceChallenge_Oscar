@@ -1,11 +1,15 @@
 ﻿using AutoMapper;
 using DesafioFinanceiro_Oscar.Domain.DTO_s;
 using DesafioFinanceiro_Oscar.Domain.Entities;
+using DesafioFinanceiro_Oscar.Domain.Entities.Messages;
 using DesafioFinanceiro_Oscar.Domain.Validators;
+using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.DocumentRepository;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -18,12 +22,17 @@ namespace DocumentAPI.Controllers
     {
 
         private readonly IDocumentRepository _documentRepository;
+        private readonly IBankRecordRepository _bankRecordRepository;
         private readonly IMapper _mapper;
 
-        public DocumentController(IMapper mapper, IDocumentRepository documentRepository)
+        public BankRecord bank = new BankRecord();
+        public Document doc = new Document();
+
+        public DocumentController(IMapper mapper, IDocumentRepository documentRepository, IBankRecordRepository bankRecordRepository)
         {
             _mapper = mapper;
             _documentRepository = documentRepository;
+            _bankRecordRepository = bankRecordRepository;
         }
 
         [HttpPost]
@@ -31,52 +40,33 @@ namespace DocumentAPI.Controllers
         {
             try
             {
-                var document = new Document();
 
-                var mapperDoc = _mapper.Map(input, document);
+                var mapperDoc = _mapper.Map(input, doc);
 
                 var validator = new DocumentValidator();
                 var valid = validator.Validate(mapperDoc);
 
                 if (valid.IsValid)
                 {
-
                     if (mapperDoc.Paid == true)
                     {
-                        var client = new HttpClient();
-                        string ApiUrl = "https://localhost:44359/api/BankRequest";
-
-                        BankRecordDTO bankrecordaux = new BankRecordDTO();
-
+                        var type = new DesafioFinanceiro_Oscar.Domain.Entities.Type();
                         if (mapperDoc.Operation == Operation.Entry)
                         {
-                            var bankRecord = new BankRecordDTO()
-                            {
-                                Origin = Origin.Document,
-                                OriginId = mapperDoc.Id,
-                                Description = $"Financial Transaction (id: {mapperDoc.Id})",
-                                Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
-                                Amount = mapperDoc.Total
-                            };
-                            bankrecordaux = bankRecord;
+                            type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment;
                         }
                         else/*(mapperDoc.Operation == Operation.Exit)*/
                         {
-                            var bankRecord = new BankRecordDTO()
-                            {
-                                Origin = Origin.Document,
-                                OriginId = mapperDoc.Id,
-                                Description = $"Financial Transaction (id: {mapperDoc.Id})",
-                                Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment,
-                                Amount = mapperDoc.Total
-                            };
-                            bankrecordaux = bankRecord;
+                            type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive;
                         }
 
-                        var response = await client.PostAsJsonAsync(ApiUrl, bankrecordaux);
+                        var response = await _bankRecordRepository.CreateBankRecord(Origin.Document, mapperDoc.Id, $"Financial Transaction id: {mapperDoc.Id}",
+                            type, mapperDoc.Total);
+
                         if (!response.IsSuccessStatusCode)
                         {
-                            return BadRequest(response.Content.ToString());
+                            var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                            return StatusCode((int)HttpStatusCode.BadRequest, result);
                         }
 
                     }
@@ -86,38 +76,40 @@ namespace DocumentAPI.Controllers
                 }
                 else
                 {
-                    var msg = valid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                    return BadRequest(msg);
+                    var news = new ErrorMessage<Document>(HttpStatusCode.BadRequest.GetHashCode().ToString(), valid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), doc);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
                 return Ok(mapperDoc);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] PageParameter parameters)
         {
             try
             {
+                var document = _documentRepository.GetAllWithPaging(parameters).OrderBy(doc => doc.Id).ToList();
 
-                var result = _documentRepository.GetAll().ToList();
-
-                if (result.Count() == 0)
+                if (document.Count == 0)
                 {
-                    return NoContent();
+                    var result = _documentRepository.NotFoundMessage(doc);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
-                return Ok(result);
+                return Ok(document);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -127,73 +119,93 @@ namespace DocumentAPI.Controllers
         {
             try
             {
-                var result = await _documentRepository.GetByIdAsync(id);
+                var document = await _documentRepository.GetByIdAsync(id);
 
-                if (result == null)
+                if (document == null)
                 {
-                    return NoContent();
+                    var result = _documentRepository.NotFoundMessage(doc);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
                 else
                 {
-                    return Ok(result);
+                    return Ok(document);
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
         }
 
         [HttpPut("ChangeDocument/{id}")]
         public async Task<IActionResult> ChangeDocument(Guid id, [FromBody] DocumentDTO input)
         {
-
-            try
+            try //validator
             {
-                var document = await _documentRepository.GetByIdAsync(id); // try catch e apagar o document
+                var document = await _documentRepository.GetByIdAsync(id); 
                 var totalValueOld = document.Total;
 
                 if (document == null)
                 {
-                    return NotFound();
+                    var result = _documentRepository.NotFoundMessage(doc);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
-                
+
+                if (document.Paid == true && input.Paid == false)
+                {
+                    var result = _bankRecordRepository.BadRequestMessage(bank, "You can't change the state of a already payed Document");
+                    return StatusCode((int)HttpStatusCode.BadRequest, result);
+                }
+
                 var mapperDoc = _mapper.Map(input, document);
+
+                var validator = new DocumentValidator();
+                var valid = validator.Validate(mapperDoc);
 
                 var TotalUpdated = document.Total - totalValueOld;
 
-                if (document.Paid == true)
+                if (valid.IsValid)
                 {
-                    if (TotalUpdated != totalValueOld)
+
+                    if (document.Paid == false && input.Paid == true || TotalUpdated != totalValueOld && document.Paid == true)
                     {
-                        var client = new HttpClient();
-                        string ApiUrl = "https://localhost:44359/api/BankRequest";
+                        string description = $"Diference Transaction in Document id: {document.Id}";
+                        var type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert;
+                        decimal total = TotalUpdated;
 
-                        var bankRecord = new BankRecordDTO()
+                        if (document.Paid == false && input.Paid == true)
                         {
-                            Origin = Origin.Document,
-                            OriginId = document.Id,
-                            Description = $"Diference Transaction in Document id: {document.Id}",
-                            Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
-                            Amount = TotalUpdated
-                        };
+                            description = $"Financial Transaction id: {document.Id}";
+                            type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive;
+                            total = input.Total;
+                        }
 
-                        var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
+                        var response = await _bankRecordRepository.CreateBankRecord(Origin.Document, document.Id, description,
+                                type, total);
+
                         if (!response.IsSuccessStatusCode)
                         {
-                            return BadRequest(response.Content.ToString());
+                            var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                            return StatusCode((int)HttpStatusCode.BadRequest, result);
                         }
                     }
+
+                    await _documentRepository.UpdateAsync(mapperDoc);
+
+                    return Ok(mapperDoc);
+                }
+                else
+                {
+                    var news = new ErrorMessage<Document>(HttpStatusCode.BadRequest.GetHashCode().ToString(), valid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), doc);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
-                await _documentRepository.UpdateAsync(mapperDoc);
-
-                return Ok(mapperDoc);
-
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -207,45 +219,40 @@ namespace DocumentAPI.Controllers
 
                 if (document == null)
                 {
-                    return NotFound();
+                    var result = _documentRepository.NotFoundMessage(doc);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
                 if (document.Paid == true)
                 {
-                    return Ok("Only Delete");
+                    var result = _documentRepository.BadRequestMessage(doc, "You can only delete a finalized Document!");
+                    return StatusCode((int)HttpStatusCode.BadRequest, result);
                 }
 
                 document.Paid = Status;
 
                 await _documentRepository.UpdateAsync(document);
 
-                var client = new HttpClient();
-                string ApiUrl = "https://localhost:44359/api/BankRequest";
-
                 if (document.Paid == true)
                 {
-                    var bankRecord = new BankRecordDTO()
-                    {
-                        Origin = Origin.Document,
-                        OriginId = document.Id,
-                        Description = $"Financial Transaction (id: {document.Id})",
-                        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
-                        Amount = document.Total
-                    };
 
-                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
+                    var response = await _bankRecordRepository.CreateBankRecord(Origin.Document, document.Id, $"Financial Transaction id: {document.Id}",
+                         DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive, document.Total);
+
                     if (!response.IsSuccessStatusCode)
                     {
-                        return BadRequest(response.Content.ToString()); ;
+                        var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
                     }
                 }
 
                 return Ok(document);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
             
         }
@@ -259,7 +266,8 @@ namespace DocumentAPI.Controllers
 
                 if (document == null)
                 {
-                    return NoContent();
+                    var result = _documentRepository.NotFoundMessage(doc);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
                 else
                 {
@@ -268,22 +276,14 @@ namespace DocumentAPI.Controllers
 
                 if (document.Paid == true)
                 {
-                    var client = new HttpClient();
-                    string ApiUrl = "https://localhost:44359/api/BankRequest";
 
-                    var bankRecord = new BankRecordDTO()
-                    {
-                        Origin = Origin.Document,
-                        OriginId = document.Id,
-                        Description = $"Revert Document order id: {document.Id}",
-                        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
-                        Amount = -document.Total
-                    };
+                    var response = await _bankRecordRepository.CreateBankRecord(Origin.Document, document.Id, $"Revert Document order id: {document.Id}",
+                        DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert, -document.Total);
 
-                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
                     if (!response.IsSuccessStatusCode)
                     {
-                        return BadRequest(response.Content.ToString());
+                        var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
                     }
 
                 }
@@ -291,9 +291,10 @@ namespace DocumentAPI.Controllers
                 return Ok(document);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _documentRepository.BadRequestMessage(doc, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }

@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 
-namespace DesafioFinanceiro_Oscar.Domain.Entities
+namespace DesafioFinanceiro_Oscar.Domain.Entities.Messages
 {
+
     public class ErrorMessage<T> where T : class
     {
 
@@ -17,4 +18,5 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
         }
 
     }
+
 }

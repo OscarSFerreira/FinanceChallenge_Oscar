@@ -1,14 +1,15 @@
 ﻿using AutoMapper;
 using DesafioFinanceiro_Oscar.Domain.DTO_s;
 using DesafioFinanceiro_Oscar.Domain.Entities;
+using DesafioFinanceiro_Oscar.Domain.Entities.Messages;
 using DesafioFinanceiro_Oscar.Domain.Validators;
+using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.BuyRequestRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.ProductRequestRepository;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace BuyRequestAPI.Controllers
@@ -20,11 +21,17 @@ namespace BuyRequestAPI.Controllers
 
         private readonly IBuyRequestRepository _buyRequestRepository;
         private readonly IProductRequestRepository _productRequestRepository;
+        private readonly IBankRecordRepository _bankRecordRepository;
         private readonly IMapper _mapper;
 
-        public BuyRequestController(IBuyRequestRepository buyRequestRepository, IProductRequestRepository productRequestRepository, IMapper mapper)
+        public BuyRequest buyReq = new BuyRequest();
+        public ProductRequest prodReq = new ProductRequest();
+        public BankRecord bank = new BankRecord();
+
+        public BuyRequestController(IBuyRequestRepository buyRequestRepository, IProductRequestRepository productRequestRepository, IMapper mapper, IBankRecordRepository bankRecordRepository)
         {
             _mapper = mapper;
+            _bankRecordRepository = bankRecordRepository;
             _buyRequestRepository = buyRequestRepository;
             _productRequestRepository = productRequestRepository;
         }
@@ -32,11 +39,8 @@ namespace BuyRequestAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> Post([FromBody] BuyRequestDTO buyinput)
         {
-
             try
             {
-                BuyRequest buyReq = new BuyRequest();
-                ProductRequest prodReq = new ProductRequest();
 
                 var mapperBuy = _mapper.Map(buyinput, buyReq);
 
@@ -52,13 +56,14 @@ namespace BuyRequestAPI.Controllers
                     {
                         if (product.ProductCategory != lastProdType)
                         {
-                            return BadRequest("A Request can't have 2 different item category!");
+                            var result = _buyRequestRepository.BadRequestMessage(buyReq, "A Request can't have 2 different item category!");
+                            return StatusCode((int)HttpStatusCode.BadRequest, result);
                         }
 
                         var mapperProd = _mapper.Map(product, prodReq);
 
                         var prodValidator = new ProductRequestValidator();
-                        var prodValid = prodValidator.Validate(mapperProd); //ver validação em lista para fluent validation 
+                        var prodValid = prodValidator.Validate(mapperProd);
 
                         if (prodValid.IsValid)
                         {
@@ -72,29 +77,30 @@ namespace BuyRequestAPI.Controllers
                         }
                         else
                         {
-                            var msg = prodValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                            return BadRequest(msg);
+                            var news = new ErrorMessage<ProductRequest>(HttpStatusCode.BadRequest.GetHashCode().ToString(), prodValid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), prodReq);
+                            return StatusCode((int)HttpStatusCode.BadRequest, news);
                         }
 
                     }
 
                     mapperBuy.Status = Status.Received;
                     mapperBuy.TotalPricing = buyReq.ProductPrices - (buyReq.ProductPrices * (buyReq.Discount / 100));
-                    
+
                     await _buyRequestRepository.UpdateAsync(mapperBuy);
                     return Ok(mapperBuy);
 
                 }
                 else
                 {
-                    var msg = buyValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                    return BadRequest(msg);
+                    var news = new ErrorMessage<BuyRequest>(HttpStatusCode.BadRequest.GetHashCode().ToString(), buyValid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), buyReq);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -108,7 +114,8 @@ namespace BuyRequestAPI.Controllers
 
                 if (bankrec == null)
                 {
-                    return NoContent();
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
                 else
                 {
@@ -116,26 +123,34 @@ namespace BuyRequestAPI.Controllers
                 }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] PageParameter parameters)
         {
             try
             {
 
-                var result = _buyRequestRepository.GetAll();
+                var buyRequest = _buyRequestRepository.GetAllWithPaging(parameters).OrderBy(buy => buy.Id).ToList();
 
-                return Ok(result);
+                if (buyRequest.Count == 0)
+                {
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
+                }
+
+                return Ok(buyRequest);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -148,14 +163,20 @@ namespace BuyRequestAPI.Controllers
                 var record = await _buyRequestRepository.GetByClientIdAsync(clientId);
 
                 if (record == null)
-                    return NoContent();
+                {
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
+                }
                 else
+                {
                     return Ok(record);
+                }
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
         }
 
@@ -165,8 +186,6 @@ namespace BuyRequestAPI.Controllers
 
             try
             {
-                ProductRequest prodReq = new ProductRequest();
-
                 var request = await _buyRequestRepository.GetByIdAsync(id);
                 var products = _productRequestRepository.GetAllByRequestId(id).ToList();
                 var oldStatus = request.Status;
@@ -174,26 +193,30 @@ namespace BuyRequestAPI.Controllers
 
                 if (request == null || products == null)
                 {
-                    return NotFound();
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
                 if (request.Status == Status.Finalized && buyinput.Status != Status.Finalized)
                 {
-                    return BadRequest("Only Delete");
+                    var result = _buyRequestRepository.BadRequestMessage(buyReq, "You can only delete a finalized Request!");
+                    return StatusCode((int)HttpStatusCode.BadRequest, result);
                 }
 
                 if (buyinput.Products.FirstOrDefault().ProductCategory == ProductCategory.Physical)
                 {
                     if (buyinput.Status == Status.WaitingDownload)
                     {
-                        return BadRequest("A Physical product can't be set to Waiting To Download status!");
+                        var result = _buyRequestRepository.BadRequestMessage(buyReq, "A Physical product can't be set to Waiting To Download status!");
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
                     }
                 }
                 else
                 {
                     if (buyinput.Status == Status.WaitingDelivery)
                     {
-                        return BadRequest("A Digital product can't be set to Waiting To Delivery status!");
+                        var result = _buyRequestRepository.BadRequestMessage(buyReq, "A Digital product can't be set to Waiting To Delivery status!");
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
                     }
                 }
 
@@ -221,8 +244,8 @@ namespace BuyRequestAPI.Controllers
                         }
                         else
                         {
-                            var msg = prodValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                            return BadRequest(msg);
+                            var news = new ErrorMessage<ProductRequest>(HttpStatusCode.BadRequest.GetHashCode().ToString(), prodValid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), prodReq);
+                            return StatusCode((int)HttpStatusCode.BadRequest, news);
                         }
                     }
                 }
@@ -263,49 +286,42 @@ namespace BuyRequestAPI.Controllers
                 }
                 else
                 {
-                    var msg = buyValid.Errors.ConvertAll(err => err.ErrorMessage.ToString());
-                    return BadRequest(msg);
+                    var news = new ErrorMessage<ProductRequest>(HttpStatusCode.BadRequest.GetHashCode().ToString(), buyValid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), prodReq);
+                    return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
                 var recentValue = mapperBuy.TotalPricing; //valor recente (total)
 
                 if (request.Status == Status.Finalized)
                 {
-                    var totalUpdated = mapperBuy.TotalPricing - totalValueOld;
                     var type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive;
-                    var amount = totalUpdated;
+                    //var amount = totalUpdated;
                     string description = $"Financial transaction order id: {request.Id}";
 
                     if (mapperBuy.Status == oldStatus && mapperBuy.Status == Status.Finalized && totalValueOld > mapperBuy.TotalPricing)
                     {
                         description = $"Diference purchase order id: {request.Id}";
-                        amount = -totalUpdated;
+                        //amount = -totalUpdated;
                         type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment;
                     }
 
-                    var client = new HttpClient();
-                    string ApiUrl = "https://localhost:44359/api/BankRequest";
+                    var response = await _bankRecordRepository.CreateBankRecord(Origin.PurchaseRequest, mapperBuy.Id, description,
+                        type, mapperBuy.TotalPricing - totalValueOld);
 
-                    var bankRecord = new BankRecordDTO()
-                    {
-                        Origin = Origin.PurchaseRequest,
-                        OriginId = mapperBuy.Id,
-                        Description = description,
-                        Type = type,
-                        Amount = totalUpdated
-                    };
-
-                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
                     if (!response.IsSuccessStatusCode)
-                        return BadRequest(response.Content.ToString());
+                    {
+                        var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
+                    }
                 }
 
                 return Ok(mapperBuy);
 
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
         }
@@ -313,63 +329,66 @@ namespace BuyRequestAPI.Controllers
         [HttpPut("changeState/{id}")]
         public async Task<IActionResult> ChangeState(Guid id, Status state)
         {
-            var request = await _buyRequestRepository.GetByIdAsync(id);
-            var product = _productRequestRepository.GetAllByRequestId(id).FirstOrDefault();
-
-            if (request == null)
+            try
             {
-                return NotFound();
-            }
+                var request = await _buyRequestRepository.GetByIdAsync(id);
+                var product = _productRequestRepository.GetAllByRequestId(id).FirstOrDefault();
 
-            if (request.Status == Status.Finalized)
-            {
-                return Ok("Only Delete");
-            }
-
-            if (product.ProductCategory == ProductCategory.Physical)
-            {
-                if (state == Status.WaitingDownload)
+                if (request == null && product == null)
                 {
-                    return BadRequest("A Physical product can't be set to WaitingDownload status!");
-                }
-            }
-            else
-            {
-                if (state == Status.WaitingDelivery)
-                {
-                    return BadRequest("A Digital product can't be set to WaitingDelivery status!");
-                }
-            }
-
-            request.Status = state;
-
-
-
-            await _buyRequestRepository.UpdateAsync(request);
-
-            if (request.Status == Status.Finalized)
-            {
-                var client = new HttpClient();
-                string ApiUrl = "https://localhost:44359/api/BankRequest";
-
-                var bankRecord = new BankRecordDTO()
-                {
-                    Origin = Origin.PurchaseRequest,
-                    OriginId = request.Id,
-                    Description = $"Purshase order id: {request.Id}",
-                    Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive,
-                    Amount = request.TotalPricing
-                };
-
-                var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
-                if (!response.IsSuccessStatusCode)
-                {
-                    return BadRequest(response.Content.ToString());
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
+                if (request.Status == Status.Finalized)
+                {
+                    var result = _buyRequestRepository.BadRequestMessage(buyReq, "You can only delete a finalized Request!");
+                    return StatusCode((int)HttpStatusCode.BadRequest, result);
+                }
+
+                if (product.ProductCategory == ProductCategory.Physical)
+                {
+                    if (state == Status.WaitingDownload)
+                    {
+                        var result = _buyRequestRepository.BadRequestMessage(buyReq, "A Physical product can't be set to Waiting To Download status!");
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
+                    }
+                }
+                else
+                {
+                    if (state == Status.WaitingDelivery)
+                    {
+                        var result = _buyRequestRepository.BadRequestMessage(buyReq, "A Digital product can't be set to Waiting To Delivery status!");
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
+                    }
+                }
+
+                request.Status = state;
+
+                await _buyRequestRepository.UpdateAsync(request);
+
+                if (request.Status == Status.Finalized)
+                {
+
+                    var response = await _bankRecordRepository.CreateBankRecord(Origin.PurchaseRequest, request.Id, $"Purshase order id: {request.Id}",
+                        DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive, request.TotalPricing);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
+                    }
+
+                }
+
+                return Ok(request);
+            }
+            catch (Exception ex)
+            {
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
 
-            return Ok(request);
         }
 
         [HttpDelete]
@@ -377,44 +396,41 @@ namespace BuyRequestAPI.Controllers
         {
             try
             {
-                var result = await _buyRequestRepository.GetByIdAsync(id);
+                var buyRequest = await _buyRequestRepository.GetByIdAsync(id);
 
-                if (result == null)
+                if (buyRequest == null)
                 {
-                    return NoContent();
+                    var result = _buyRequestRepository.NotFoundMessage(buyReq);
+                    return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
-                await _buyRequestRepository.DeleteAsync(result);
+                await _buyRequestRepository.DeleteAsync(buyRequest);
 
-                if (result.Status == Status.Finalized)
+                if (buyRequest.Status == Status.Finalized)
                 {
-                    
-                    var client = new HttpClient();
-                    string ApiUrl = "https://localhost:44359/api/BankRequest";
 
-                    var bankRecord = new BankRecordDTO()
-                    {
-                        Origin = Origin.Document,
-                        OriginId = id,
-                        Description = $"Revert Purshase order id: {result.Id}",
-                        Type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert,
-                        Amount = -result.TotalPricing
-                    };
+                    var response = await _bankRecordRepository.CreateBankRecord(Origin.PurchaseRequest, id, $"Revert Purshase order id: {buyRequest.Id}",
+                        DesafioFinanceiro_Oscar.Domain.Entities.Type.Revert, -buyRequest.TotalPricing);
 
-                    var response = await client.PostAsJsonAsync(ApiUrl, bankRecord);
                     if (!response.IsSuccessStatusCode)
                     {
-                        return BadRequest(response.Content.ToString());
+                        var result = _bankRecordRepository.BadRequestMessage(bank, response.Content.ToString());
+                        return StatusCode((int)HttpStatusCode.BadRequest, result);
                     }
 
                 }
-                return Ok(result);
+
+                return Ok(buyRequest);
+
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return BadRequest();
+                var result = _buyRequestRepository.BadRequestMessage(buyReq, ex.Message.ToString());
+                return StatusCode((int)HttpStatusCode.BadRequest, result);
             }
+
         }
 
     }
+
 }

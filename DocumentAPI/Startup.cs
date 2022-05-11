@@ -1,4 +1,5 @@
 using DesafioFinanceiro_Oscar.Infrastructure;
+using DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository;
 using DesafioFinanceiro_Oscar.Infrastructure.Repository.DocumentRepository;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -36,6 +37,7 @@ namespace DocumentAPI
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
             services.AddScoped<SeedDb>();
             services.AddScoped<IDocumentRepository, DocumentRepository>();
+            services.AddScoped<IBankRecordRepository, BankRecordRepository>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

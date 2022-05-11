@@ -1,6 +1,6 @@
 ﻿using DesafioFinanceiro_Oscar.Domain.Entities;
 using System;
-using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository
@@ -10,7 +10,7 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository
 
         Task<BankRecord> GetByIdAsync(Guid id);
 
-        IEnumerable<BankRecord> GetAll(PageParameter pageParameter);
+        Task<HttpResponseMessage> CreateBankRecord(Origin origin, Guid originId, string description, DesafioFinanceiro_Oscar.Domain.Entities.Type type, decimal amount);
 
     }
 }
