@@ -180,6 +180,12 @@ namespace BankRequestAPI.Controllers
                     return StatusCode((int)HttpStatusCode.NotFound, result);
                 }
 
+                if (bankReqUpdate.Origin == Origin.Null)
+                {
+                    bankReqUpdate.OriginId = Guid.Empty;
+                    bankReqUpdate.Origin = Origin.Null;
+                }
+
                 if (bankReqUpdate.OriginId != null)
                 {
                     var result = _bankRecordRepository.BadRequestMessage(bank, "The permissions do not allow you to change this data!");

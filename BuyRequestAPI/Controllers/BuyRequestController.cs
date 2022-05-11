@@ -188,8 +188,6 @@ namespace BuyRequestAPI.Controllers
             {
                 var request = await _buyRequestRepository.GetByIdAsync(id);
                 var products = _productRequestRepository.GetAllByRequestId(id).ToList();
-                var oldStatus = request.Status;
-                var totalValueOld = request.TotalPricing;
 
                 if (request == null || products == null)
                 {
@@ -220,7 +218,10 @@ namespace BuyRequestAPI.Controllers
                     }
                 }
 
+                var oldStatus = request.Status;
+                var totalValueOld = request.TotalPricing;
                 int smallerAmount = products.Count();
+                request.ProductPrices = 0;
 
                 if (products.Count() < buyinput.Products.Count())
                 {
@@ -232,15 +233,15 @@ namespace BuyRequestAPI.Controllers
                         mapperProd.RequestId = id;
                         mapperProd.Id = Guid.NewGuid();
                         mapperProd.ProductId = Guid.NewGuid();
-
                         mapperProd.Total = mapperProd.ProductQuantity * mapperProd.ProductPrice;
+                        request.ProductPrices += mapperProd.Total;
 
                         var prodValidator = new ProductRequestValidator();
                         var prodValid = prodValidator.Validate(mapperProd);
 
                         if (prodValid.IsValid)
                         {
-                            await _productRequestRepository.UpdateAsync(mapperProd);
+                            await _productRequestRepository.AddAsync(mapperProd);
                         }
                         else
                         {
@@ -260,7 +261,6 @@ namespace BuyRequestAPI.Controllers
 
                 }
 
-                request.ProductPrices = 0;
 
                 for (int i = 0; i < smallerAmount; i++)
                 {
@@ -273,7 +273,7 @@ namespace BuyRequestAPI.Controllers
                     request.ProductPrices += products[i].Total;
                 }
 
-                request.TotalPricing = request.ProductPrices * (request.ProductPrices * (request.Discount / 100));
+                request.TotalPricing = request.ProductPrices - (request.ProductPrices * (request.Discount / 100));
 
                 var mapperBuy = _mapper.Map(buyinput, request);
 
@@ -290,23 +290,22 @@ namespace BuyRequestAPI.Controllers
                     return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
 
-                var recentValue = mapperBuy.TotalPricing; //valor recente (total)
 
                 if (request.Status == Status.Finalized)
                 {
                     var type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Receive;
-                    //var amount = totalUpdated;
+                    var recentValue = mapperBuy.TotalPricing; //valor recente (total)
                     string description = $"Financial transaction order id: {request.Id}";
 
                     if (mapperBuy.Status == oldStatus && mapperBuy.Status == Status.Finalized && totalValueOld > mapperBuy.TotalPricing)
                     {
                         description = $"Diference purchase order id: {request.Id}";
-                        //amount = -totalUpdated;
+                        recentValue = mapperBuy.TotalPricing - totalValueOld;
                         type = DesafioFinanceiro_Oscar.Domain.Entities.Type.Payment;
                     }
 
                     var response = await _bankRecordRepository.CreateBankRecord(Origin.PurchaseRequest, mapperBuy.Id, description,
-                        type, mapperBuy.TotalPricing - totalValueOld);
+                        type, recentValue);
 
                     if (!response.IsSuccessStatusCode)
                     {
