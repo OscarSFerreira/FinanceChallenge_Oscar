@@ -261,7 +261,6 @@ namespace BuyRequestAPI.Controllers
 
                 }
 
-
                 for (int i = 0; i < smallerAmount; i++)
                 {
                     products[i].Total = buyinput.Products[i].ProductPrice * buyinput.Products[i].ProductQuantity;
@@ -289,7 +288,6 @@ namespace BuyRequestAPI.Controllers
                     var news = new ErrorMessage<ProductRequest>(HttpStatusCode.BadRequest.GetHashCode().ToString(), buyValid.Errors.ConvertAll(x => x.ErrorMessage.ToString()), prodReq);
                     return StatusCode((int)HttpStatusCode.BadRequest, news);
                 }
-
 
                 if (request.Status == Status.Finalized)
                 {

@@ -25,7 +25,7 @@ namespace DesafioFinanceiro_Oscar.Infrastructure.Repository.BankRecordRepository
                 .FirstOrDefaultAsync(e => e.Id == id);
         }
 
-        public async Task<HttpResponseMessage> CreateBankRecord(Origin origin, Guid originId, string description, Domain.Entities.Type type, decimal amount)
+        public async Task<HttpResponseMessage> CreateBankRecord(Origin origin, Guid originId, string description, Domain.Entities.Type type, decimal amount) 
         {
             var client = new HttpClient();
             string ApiUrl = "https://localhost:44359/api/BankRequest";

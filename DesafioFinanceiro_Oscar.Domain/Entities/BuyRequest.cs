@@ -26,17 +26,6 @@ namespace DesafioFinanceiro_Oscar.Domain.Entities
         public decimal Discount { get; set; }
         public decimal CostPrice { get; set; }
         public decimal TotalPricing { get; set; }
-        //{
-        //    get
-        //    {
-        //        return _totalValue = ProductPrices - (ProductPrices * (Discount / 100)); // rever este calculo (ProductPrice - Discount)
-        //    }
-        //    set
-        //    {
-        //        _totalValue = value;
-        //    }
-
-        //} 
 
         [JsonIgnore]
         public virtual ICollection<ProductRequest> ProductRequests { get; set; }
